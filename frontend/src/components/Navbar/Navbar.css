@@ -1,0 +1,144 @@
+/* Navbar.css - Clean Version */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 64px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e1e4e8;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2c3e50;
+  cursor: pointer;
+}
+
+.logo-icon {
+  font-size: 24px;
+}
+
+.logo-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.nav-search input {
+  padding: 8px 14px;
+  border: 1px solid #e1e4e8;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s ease;
+  width: 200px;
+  background-color: #f6f8fa;
+}
+
+.nav-search input:focus {
+  border-color: #667eea;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.nav-search input::placeholder {
+  color: #a0aec0;
+}
+
+.nav-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-icon-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  padding: 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  color: #4a5568;
+  position: relative;
+}
+
+.nav-icon-btn:hover {
+  background-color: #f0f2f5;
+  transform: translateY(-1px);
+}
+
+.nav-icon-btn:active {
+  transform: translateY(0px);
+}
+
+/* Badge for notifications */
+.nav-icon-btn .badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background-color: #e53e3e;
+  color: white;
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0 16px;
+  }
+
+  .nav-search input {
+    width: 140px;
+  }
+
+  .logo-text {
+    font-size: 16px;
+  }
+
+  .nav-actions {
+    gap: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-search {
+    display: none;
+  }
+
+  .logo-text {
+    font-size: 14px;
+  }
+
+  .navbar {
+    height: 56px;
+  }
+}
