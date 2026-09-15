@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Environment — DO NOT PUSH
+.env
+.env.local
+.env.production
+*/.env
+**/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Build
+dist/
+build/
+*/dist/
+*/build/
+
+# Cache
+.cache/
+coverage/
