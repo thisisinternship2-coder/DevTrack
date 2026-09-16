@@ -8,7 +8,6 @@ const Sidebar = () => {
     { path: '/projects', icon: '📁', label: 'Projects' },
     { path: '/tasks', icon: '✅', label: 'Tasks' },
     { path: '/kanban', icon: '📋', label: 'Kanban' },
-    { path: '/ai-assistant', icon: '🤖', label: 'AI Assistant' },
     { path: '/team', icon: '👥', label: 'Team' },
     { path: '/notifications', icon: '🔔', label: 'Notifications' },
     { path: '/profile', icon: '👤', label: 'Profile' },
