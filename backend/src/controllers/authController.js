@@ -46,7 +46,6 @@ exports.forgotPassword = async (req, res) => {
     console.error('Code:', error.code);
     console.error('Command:', error.command);
     console.error('Response:', error.response);
-    console.error('Stack:', error.stack);
 
     res.status(500).json({
       message: 'Failed to send reset email',
