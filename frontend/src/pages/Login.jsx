@@ -89,6 +89,9 @@ const Login = () => {
             </Button>
 
             <p className="signup-link">
+              <Link to="/forgot-password" className="forgot-link">Forgot password?</Link>
+            </p>
+            <p className="signup-link">
               Don't have an account? <Link to="/signup">Sign up</Link>
             </p>
           </form>
@@ -142,9 +145,11 @@ const Login = () => {
           border-radius: 6px;
         }
         .login-btn { width: 100%; margin-top: 8px; }
-        .signup-link { text-align: center; font-size: 14px; color: #586069; }
+        .signup-link { text-align: center; font-size: 14px; color: #586069; margin: 0; }
         .signup-link a { color: #667eea; font-weight: 500; }
         .signup-link a:hover { text-decoration: underline; }
+        .forgot-link { color: #64748b; font-weight: 500; }
+        .forgot-link:hover { color: #667eea; }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
