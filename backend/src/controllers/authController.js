@@ -1,3 +1,70 @@
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
+const pool = require('../../config/database');
+const crypto = require('crypto');
+const sendEmail = require('../../utils/sendEmail');
+
+const generateToken = (id) =>
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+exports.register = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'All fields required' });
+    }
+
+    const exists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (exists.rows.length > 0) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, role',
+      [name, email, hashed]
+    );
+
+    const user = result.rows[0];
+    res.status(201).json({
+      success: true,
+      token: generateToken(user.id),
+      user
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    res.json({
+      success: true,
+      token: generateToken(user.id),
+      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getMe = async (req, res) => {
+  res.json({ success: true, user: req.user });
+};
+
 exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -44,16 +111,72 @@ exports.forgotPassword = async (req, res) => {
     console.error('=== FORGOT PASSWORD ERROR ===');
     console.error('Message:', error.message);
     console.error('Code:', error.code);
-    console.error('Command:', error.command);
-    console.error('Response:', error.response);
 
     res.status(500).json({
       message: 'Failed to send reset email',
       debug: {
         message: error.message,
         code: error.code,
-        command: error.command,
       },
     });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const result = await pool.query(
+      'SELECT id FROM users WHERE reset_token = $1 AND reset_token_expiry > NOW()',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    const user = result.rows[0];
+    const hashed = await bcrypt.hash(password, 10);
+
+    await pool.query(
+      'UPDATE users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE id = $2',
+      [hashed, user.id]
+    );
+
+    res.json({ success: true, message: 'Password reset successful. You can now log in.' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Both current and new password required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const result = await pool.query('SELECT password FROM users WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0) return res.status(404).json({ message: 'User not found' });
+
+    const match = await bcrypt.compare(currentPassword, result.rows[0].password);
+    if (!match) return res.status(401).json({ message: 'Current password is incorrect' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashed, req.user.id]);
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
   }
 };
