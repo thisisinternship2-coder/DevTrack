@@ -1,22 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, X, Loader2, FolderKanban } from 'lucide-react';
+import { Plus, X, Loader2, FolderKanban, Crown } from 'lucide-react';
 import Card from '../components/common/Card/Card';
 import Button from '../components/common/Button/Button';
 import { api } from '../services/api';
 
 const Projects = () => {
   const [projects, setProjects] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', status: 'planning' });
   const [saving, setSaving] = useState(false);
 
-  const fetchProjects = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await api.get('/projects');
-      setProjects(data.projects);
+      const [projectsData, meData] = await Promise.all([
+        api.get('/projects'),
+        api.get('/auth/me'),
+      ]);
+      setProjects(projectsData.projects);
+      setUser(meData.user);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -25,7 +30,7 @@ const Projects = () => {
   };
 
   useEffect(() => {
-    fetchProjects();
+    fetchData();
   }, []);
 
   const handleChange = (e) => {
@@ -58,24 +63,45 @@ const Projects = () => {
     }
   };
 
+  const isLead = user?.role === 'lead';
+
+  if (loading) {
+    return (
+      <div className="center">
+        <Loader2 size={32} className="spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
         <div>
           <h1 className="page-title">Projects</h1>
-          <p className="page-description">Manage your projects</p>
+          <p className="page-description">
+            {isLead ? 'Manage your projects' : 'Projects from your team'}
+          </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm ? <><X size={16} /> Cancel</> : <><Plus size={16} /> New Project</>}
-        </Button>
+        {isLead && (
+          <Button
+            variant="primary"
+            onClick={() => setShowForm(!showForm)}
+          >
+            {showForm ? <><X size={16} /> Cancel</> : <><Plus size={16} /> New Project</>}
+          </Button>
+        )}
       </div>
+
+      {!isLead && (
+        <div className="role-notice">
+          <Crown size={14} />
+          Only Team Leads can create projects
+        </div>
+      )}
 
       {error && <p className="form-error">{error}</p>}
 
-      {showForm && (
+      {showForm && isLead && (
         <Card className="create-form">
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -122,14 +148,16 @@ const Projects = () => {
         </Card>
       )}
 
-      {loading ? (
-        <div className="center"><Loader2 size={32} className="spin" /></div>
-      ) : projects.length === 0 ? (
+      {projects.length === 0 ? (
         <Card>
           <div className="empty-state">
             <FolderKanban size={48} strokeWidth={1.5} />
             <p>No projects yet</p>
-            <span>Click "New Project" to create your first one.</span>
+            <span>
+              {isLead
+                ? 'Click "New Project" to create your first one.'
+                : 'Your Team Lead hasn\'t created any projects yet.'}
+            </span>
           </div>
         </Card>
       ) : (
@@ -145,9 +173,11 @@ const Projects = () => {
                 <span className="project-date">
                   {new Date(p.created_at).toLocaleDateString()}
                 </span>
-                <button className="delete-btn" onClick={() => handleDelete(p.id)}>
-                  Delete
-                </button>
+                {isLead && (
+                  <button className="delete-btn" onClick={() => handleDelete(p.id)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </Card>
           ))}
@@ -169,6 +199,17 @@ const Projects = () => {
           margin-bottom: 4px;
         }
         .page-description { font-size: 15px; color: #64748b; }
+        .role-notice {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: #92400e;
+          background: #fef3c7;
+          padding: 8px 14px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+        }
         .form-error {
           color: #dc3545;
           font-size: 14px;
@@ -263,7 +304,7 @@ const Projects = () => {
           color: #475569;
           margin: 0;
         }
-        .empty-state span { font-size: 14px; }
+        .empty-state span { font-size: 14px; text-align: center; }
         .center {
           display: flex;
           justify-content: center;

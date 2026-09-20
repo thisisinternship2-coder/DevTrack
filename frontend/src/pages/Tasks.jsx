@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, X, Loader2, CheckSquare } from 'lucide-react';
+import { Plus, X, Loader2, CheckSquare, Crown, UserCircle } from 'lucide-react';
 import Card from '../components/common/Card/Card';
 import Button from '../components/common/Button/Button';
 import { api } from '../services/api';
@@ -7,6 +7,8 @@ import { api } from '../services/api';
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -16,20 +18,32 @@ const Tasks = () => {
     status: 'todo',
     priority: 'medium',
     project_id: '',
+    assigned_to: '',
   });
   const [saving, setSaving] = useState(false);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [tasksData, projectsData] = await Promise.all([
+      const [tasksData, projectsData, meData] = await Promise.all([
         api.get('/tasks'),
         api.get('/projects'),
+        api.get('/auth/me'),
       ]);
       setTasks(tasksData.tasks);
       setProjects(projectsData.projects);
+      setUser(meData.user);
+
       if (projectsData.projects.length > 0 && !form.project_id) {
         setForm((f) => ({ ...f, project_id: projectsData.projects[0].id }));
+      }
+
+      // Fetch company members for assignee dropdown
+      try {
+        const companyData = await api.get('/companies/my');
+        setMembers(companyData.members || []);
+      } catch {
+        setMembers([]);
       }
     } catch (err) {
       setError(err.message);
@@ -52,13 +66,21 @@ const Tasks = () => {
     setSaving(true);
     setError('');
     try {
-      const data = await api.post('/tasks', {
-        ...form,
+      const payload = {
+        title: form.title,
+        description: form.description,
+        status: form.status,
+        priority: form.priority,
         project_id: parseInt(form.project_id, 10),
-      });
+      };
+      if (form.assigned_to) {
+        payload.assigned_to = parseInt(form.assigned_to, 10);
+      }
+      const data = await api.post('/tasks', payload);
       setTasks([data.task, ...tasks]);
-      setForm({ ...form, title: '', description: '' });
+      setForm({ ...form, title: '', description: '', assigned_to: '' });
       setShowForm(false);
+      await fetchData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -85,23 +107,50 @@ const Tasks = () => {
     }
   };
 
+  const isLead = user?.role === 'lead';
+
+  // A member can only change status of tasks assigned to them
+  const canChangeStatus = (task) => {
+    if (isLead) return true;
+    return task.assigned_to === user?.id;
+  };
+
+  if (loading) {
+    return (
+      <div className="center">
+        <Loader2 size={32} className="spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="page-container">
       <div className="page-header">
         <div>
           <h1 className="page-title">Tasks</h1>
-          <p className="page-description">View and manage your tasks</p>
+          <p className="page-description">
+            {isLead ? 'Create and assign tasks to your team' : 'Tasks assigned to you and your team'}
+          </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => setShowForm(!showForm)}
-          disabled={projects.length === 0}
-        >
-          {showForm ? <><X size={16} /> Cancel</> : <><Plus size={16} /> New Task</>}
-        </Button>
+        {isLead && (
+          <Button
+            variant="primary"
+            onClick={() => setShowForm(!showForm)}
+            disabled={projects.length === 0}
+          >
+            {showForm ? <><X size={16} /> Cancel</> : <><Plus size={16} /> New Task</>}
+          </Button>
+        )}
       </div>
 
-      {projects.length === 0 && !loading && (
+      {!isLead && (
+        <div className="role-notice">
+          <Crown size={14} />
+          Only Team Leads can create tasks
+        </div>
+      )}
+
+      {projects.length === 0 && !loading && isLead && (
         <Card>
           <div className="empty-state">
             <p>You need a project first</p>
@@ -112,7 +161,7 @@ const Tasks = () => {
 
       {error && <p className="form-error">{error}</p>}
 
-      {showForm && projects.length > 0 && (
+      {showForm && isLead && projects.length > 0 && (
         <Card className="create-form">
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -154,6 +203,24 @@ const Tasks = () => {
                 </select>
               </div>
               <div className="form-group">
+                <label>Assign To</label>
+                <select
+                  name="assigned_to"
+                  value={form.assigned_to}
+                  onChange={handleChange}
+                  className="form-input"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} {m.role === 'lead' ? '(Lead)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
                 <label>Priority</label>
                 <select
                   name="priority"
@@ -189,14 +256,16 @@ const Tasks = () => {
         </Card>
       )}
 
-      {loading ? (
-        <div className="center"><Loader2 size={32} className="spin" /></div>
-      ) : tasks.length === 0 && projects.length > 0 ? (
+      {tasks.length === 0 && (projects.length > 0 || !isLead) ? (
         <Card>
           <div className="empty-state">
             <CheckSquare size={48} strokeWidth={1.5} />
             <p>No tasks yet</p>
-            <span>Click "New Task" to add your first one.</span>
+            <span>
+              {isLead
+                ? 'Click "New Task" to add your first one.'
+                : 'No tasks have been assigned yet.'}
+            </span>
           </div>
         </Card>
       ) : (
@@ -213,6 +282,7 @@ const Tasks = () => {
                     value={t.status}
                     onChange={(e) => handleStatusChange(t.id, e.target.value)}
                     className={`status-select status-${t.status.replace('-', '')}`}
+                    disabled={!canChangeStatus(t)}
                   >
                     <option value="todo">To Do</option>
                     <option value="in-progress">In Progress</option>
@@ -222,13 +292,28 @@ const Tasks = () => {
                 </div>
               </div>
               {t.description && <p className="task-desc">{t.description}</p>}
+              <div className="task-meta">
+                {t.assignee_name ? (
+                  <span className="assignee-chip">
+                    <UserCircle size={14} />
+                    {t.assignee_name}
+                  </span>
+                ) : (
+                  <span className="assignee-chip unassigned">Unassigned</span>
+                )}
+                {t.project_name && (
+                  <span className="project-chip">{t.project_name}</span>
+                )}
+              </div>
               <div className="task-footer">
                 <span className="task-date">
                   {new Date(t.created_at).toLocaleDateString()}
                 </span>
-                <button className="delete-btn" onClick={() => handleDelete(t.id)}>
-                  Delete
-                </button>
+                {isLead && (
+                  <button className="delete-btn" onClick={() => handleDelete(t.id)}>
+                    Delete
+                  </button>
+                )}
               </div>
             </Card>
           ))}
@@ -243,13 +328,19 @@ const Tasks = () => {
           align-items: flex-start;
           margin-bottom: 24px;
         }
-        .page-title {
-          font-size: 28px;
-          font-weight: 700;
-          color: #1a202c;
-          margin-bottom: 4px;
-        }
+        .page-title { font-size: 28px; font-weight: 700; color: #1a202c; margin-bottom: 4px; }
         .page-description { font-size: 15px; color: #64748b; }
+        .role-notice {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: #92400e;
+          background: #fef3c7;
+          padding: 8px 14px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+        }
         .form-error {
           color: #dc3545;
           font-size: 14px;
@@ -261,11 +352,7 @@ const Tasks = () => {
         }
         .create-form { margin-bottom: 24px; }
         .create-form form { display: flex; flex-direction: column; gap: 14px; }
-        .form-row {
-          display: grid;
-          grid-template-columns: 2fr 1fr 1fr;
-          gap: 14px;
-        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         .form-group label { font-size: 14px; font-weight: 500; color: #24292e; }
         .form-input {
@@ -317,12 +404,32 @@ const Tasks = () => {
           border: 1px solid #e1e4e8;
           cursor: pointer;
           font-family: inherit;
+          background: white;
         }
-        .task-desc {
-          font-size: 14px;
-          color: #64748b;
+        .status-select:disabled {
+          cursor: not-allowed;
+          opacity: 0.6;
+          background: #f8fafc;
+        }
+        .task-desc { font-size: 14px; color: #64748b; margin-bottom: 12px; }
+        .task-meta {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
           margin-bottom: 12px;
         }
+        .assignee-chip, .project-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 12px;
+          font-weight: 500;
+          padding: 4px 10px;
+          border-radius: 20px;
+        }
+        .assignee-chip { background: #eef2ff; color: #4f46e5; }
+        .assignee-chip.unassigned { background: #f1f5f9; color: #94a3b8; }
+        .project-chip { background: #f1f5f9; color: #475569; }
         .task-footer {
           display: flex;
           justify-content: space-between;
@@ -349,19 +456,9 @@ const Tasks = () => {
           padding: 40px 20px;
           color: #94a3b8;
         }
-        .empty-state p {
-          font-size: 16px;
-          font-weight: 600;
-          color: #475569;
-          margin: 0;
-        }
-        .empty-state span { font-size: 14px; }
-        .center {
-          display: flex;
-          justify-content: center;
-          padding: 60px;
-          color: #667eea;
-        }
+        .empty-state p { font-size: 16px; font-weight: 600; color: #475569; margin: 0; }
+        .empty-state span { font-size: 14px; text-align: center; }
+        .center { display: flex; justify-content: center; padding: 60px; color: #667eea; }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>

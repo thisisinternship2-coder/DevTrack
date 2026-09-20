@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Plus, X, ArrowRight, ArrowLeft, CheckSquare } from 'lucide-react';
+import { Loader2, Plus, X, ArrowRight, ArrowLeft, CheckSquare, Crown } from 'lucide-react';
 import Card from '../components/common/Card/Card';
 import Button from '../components/common/Button/Button';
 import { api } from '../services/api';
@@ -14,6 +14,7 @@ const COLUMNS = [
 const Kanban = () => {
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -27,13 +28,15 @@ const Kanban = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [tasksData, projectsData] = await Promise.all([
+      const [tasksData, projectsData, meData] = await Promise.all([
         api.get('/tasks'),
         api.get('/projects'),
+        api.get('/auth/me'),
       ]);
       setTasks(tasksData.tasks);
       setProjects(projectsData.projects);
-      if (projectsData.projects.length > 0) {
+      setUser(meData.user);
+      if (projectsData.projects.length > 0 && !form.project_id) {
         setForm((f) => ({ ...f, project_id: projectsData.projects[0].id }));
       }
     } catch (err) {
@@ -65,6 +68,7 @@ const Kanban = () => {
       setTasks([data.task, ...tasks]);
       setForm({ ...form, title: '' });
       setShowForm(false);
+      await fetchData();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -72,7 +76,20 @@ const Kanban = () => {
     }
   };
 
+  const isLead = user?.role === 'lead';
+
+  const canMoveTask = (task) => {
+    if (isLead) return true;
+    return task.assigned_to === user?.id;
+  };
+
   const moveTask = async (task, direction) => {
+    if (!canMoveTask(task)) {
+      setError('You can only move tasks assigned to you');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
     const currentIdx = COLUMNS.findIndex((c) => c.key === task.status);
     const nextIdx = currentIdx + direction;
     if (nextIdx < 0 || nextIdx >= COLUMNS.length) return;
@@ -103,20 +120,33 @@ const Kanban = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Kanban Board</h1>
-          <p className="page-description">Visualize your workflow — click arrows to move tasks</p>
+          <p className="page-description">
+            {isLead
+              ? 'Visualize your workflow — click arrows to move tasks'
+              : 'Move tasks assigned to you between columns'}
+          </p>
         </div>
-        <Button
-          variant="primary"
-          onClick={() => setShowForm(!showForm)}
-          disabled={projects.length === 0}
-        >
-          {showForm ? <><X size={16} /> Cancel</> : <><Plus size={16} /> New Task</>}
-        </Button>
+        {isLead && (
+          <Button
+            variant="primary"
+            onClick={() => setShowForm(!showForm)}
+            disabled={projects.length === 0}
+          >
+            {showForm ? <><X size={16} /> Cancel</> : <><Plus size={16} /> New Task</>}
+          </Button>
+        )}
       </div>
+
+      {!isLead && (
+        <div className="role-notice">
+          <Crown size={14} />
+          Members can move their own assigned tasks
+        </div>
+      )}
 
       {error && <p className="form-error">{error}</p>}
 
-      {projects.length === 0 && (
+      {projects.length === 0 && isLead && (
         <Card>
           <div className="empty-state">
             <p>You need a project first</p>
@@ -125,7 +155,7 @@ const Kanban = () => {
         </Card>
       )}
 
-      {showForm && projects.length > 0 && (
+      {showForm && isLead && projects.length > 0 && (
         <Card className="create-form">
           <form onSubmit={handleCreate}>
             <div className="form-row">
@@ -177,12 +207,16 @@ const Kanban = () => {
         </Card>
       )}
 
-      {tasks.length === 0 && projects.length > 0 ? (
+      {tasks.length === 0 && (projects.length > 0 || !isLead) ? (
         <Card>
           <div className="empty-state">
             <CheckSquare size={48} strokeWidth={1.5} />
             <p>No tasks yet</p>
-            <span>Click "New Task" to add your first one.</span>
+            <span>
+              {isLead
+                ? 'Click "New Task" to add your first one.'
+                : 'No tasks assigned yet.'}
+            </span>
           </div>
         </Card>
       ) : (
@@ -200,35 +234,47 @@ const Kanban = () => {
                   <div className="column-empty">No tasks</div>
                 ) : (
                   tasksByStatus(col.key).map((task) => (
-                    <div key={task.id} className="kanban-card">
+                    <div
+                      key={task.id}
+                      className={`kanban-card ${!canMoveTask(task) ? 'read-only' : ''}`}
+                    >
                       <div className="kanban-card-title">{task.title}</div>
                       {task.description && (
                         <div className="kanban-card-desc">{task.description}</div>
+                      )}
+                      {task.assignee_name && (
+                        <div className="kanban-assignee">
+                          👤 {task.assignee_name}
+                        </div>
                       )}
                       <div className="kanban-card-footer">
                         <span className={`priority-badge priority-${task.priority}`}>
                           {task.priority}
                         </span>
-                        <div className="kanban-card-actions">
-                          {col.key !== 'todo' && (
-                            <button
-                              className="arrow-btn"
-                              onClick={() => moveTask(task, -1)}
-                              title="Move left"
-                            >
-                              <ArrowLeft size={14} />
-                            </button>
-                          )}
-                          {col.key !== 'done' && (
-                            <button
-                              className="arrow-btn"
-                              onClick={() => moveTask(task, 1)}
-                              title="Move right"
-                            >
-                              <ArrowRight size={14} />
-                            </button>
-                          )}
-                        </div>
+                        {canMoveTask(task) ? (
+                          <div className="kanban-card-actions">
+                            {col.key !== 'todo' && (
+                              <button
+                                className="arrow-btn"
+                                onClick={() => moveTask(task, -1)}
+                                title="Move left"
+                              >
+                                <ArrowLeft size={14} />
+                              </button>
+                            )}
+                            {col.key !== 'done' && (
+                              <button
+                                className="arrow-btn"
+                                onClick={() => moveTask(task, 1)}
+                                title="Move right"
+                              >
+                                <ArrowRight size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="locked-hint">Not yours</span>
+                        )}
                       </div>
                     </div>
                   ))
@@ -247,13 +293,19 @@ const Kanban = () => {
           align-items: flex-start;
           margin-bottom: 24px;
         }
-        .page-title {
-          font-size: 28px;
-          font-weight: 700;
-          color: #1a202c;
-          margin-bottom: 4px;
-        }
+        .page-title { font-size: 28px; font-weight: 700; color: #1a202c; margin-bottom: 4px; }
         .page-description { font-size: 15px; color: #64748b; }
+        .role-notice {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: #92400e;
+          background: #fef3c7;
+          padding: 8px 14px;
+          border-radius: 6px;
+          margin-bottom: 16px;
+        }
         .form-error {
           color: #dc3545;
           font-size: 14px;
@@ -280,7 +332,6 @@ const Kanban = () => {
           border-color: #667eea;
           box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
-
         .kanban-board {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
@@ -292,7 +343,6 @@ const Kanban = () => {
         @media (max-width: 600px) {
           .kanban-board { grid-template-columns: 1fr; }
         }
-
         .kanban-column {
           background: #f8fafc;
           border-radius: 10px;
@@ -309,17 +359,8 @@ const Kanban = () => {
           border-bottom: 1px solid #e2e8f0;
           margin-bottom: 12px;
         }
-        .column-dot {
-          width: 10px;
-          height: 10px;
-          border-radius: 50%;
-        }
-        .column-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: #1a202c;
-          flex: 1;
-        }
+        .column-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .column-title { font-size: 14px; font-weight: 600; color: #1a202c; flex: 1; }
         .column-count {
           font-size: 12px;
           font-weight: 700;
@@ -328,11 +369,7 @@ const Kanban = () => {
           padding: 2px 8px;
           border-radius: 10px;
         }
-        .column-body {
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
+        .column-body { display: flex; flex-direction: column; gap: 10px; }
         .column-empty {
           font-size: 13px;
           color: #94a3b8;
@@ -340,7 +377,6 @@ const Kanban = () => {
           padding: 20px 10px;
           font-style: italic;
         }
-
         .kanban-card {
           background: white;
           border: 1px solid #e5e7eb;
@@ -348,9 +384,8 @@ const Kanban = () => {
           padding: 12px;
           transition: box-shadow 0.15s;
         }
-        .kanban-card:hover {
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-        }
+        .kanban-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06); }
+        .kanban-card.read-only { opacity: 0.7; background: #fafbfc; }
         .kanban-card-title {
           font-size: 14px;
           font-weight: 600;
@@ -360,8 +395,17 @@ const Kanban = () => {
         .kanban-card-desc {
           font-size: 12px;
           color: #64748b;
-          margin-bottom: 10px;
+          margin-bottom: 8px;
           line-height: 1.4;
+        }
+        .kanban-assignee {
+          font-size: 11px;
+          color: #4f46e5;
+          background: #eef2ff;
+          padding: 3px 8px;
+          border-radius: 12px;
+          display: inline-block;
+          margin-bottom: 8px;
         }
         .kanban-card-footer {
           display: flex;
@@ -380,10 +424,7 @@ const Kanban = () => {
         .priority-medium { background: #dbeafe; color: #1e40af; }
         .priority-high { background: #fed7aa; color: #9a3412; }
         .priority-urgent { background: #fecaca; color: #991b1b; }
-        .kanban-card-actions {
-          display: flex;
-          gap: 4px;
-        }
+        .kanban-card-actions { display: flex; gap: 4px; }
         .arrow-btn {
           background: #f1f5f9;
           border: none;
@@ -397,9 +438,11 @@ const Kanban = () => {
           color: #475569;
           transition: all 0.15s;
         }
-        .arrow-btn:hover {
-          background: #667eea;
-          color: white;
+        .arrow-btn:hover { background: #667eea; color: white; }
+        .locked-hint {
+          font-size: 10px;
+          color: #94a3b8;
+          font-style: italic;
         }
         .empty-state {
           display: flex;
@@ -409,19 +452,9 @@ const Kanban = () => {
           padding: 40px 20px;
           color: #94a3b8;
         }
-        .empty-state p {
-          font-size: 16px;
-          font-weight: 600;
-          color: #475569;
-          margin: 0;
-        }
-        .empty-state span { font-size: 14px; }
-        .center {
-          display: flex;
-          justify-content: center;
-          padding: 60px;
-          color: #667eea;
-        }
+        .empty-state p { font-size: 16px; font-weight: 600; color: #475569; margin: 0; }
+        .empty-state span { font-size: 14px; text-align: center; }
+        .center { display: flex; justify-content: center; padding: 60px; color: #667eea; }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Rocket, Loader2 } from 'lucide-react';
+import { Rocket, Loader2, Users, Crown } from 'lucide-react';
 import Button from '../components/common/Button/Button';
 import Card from '../components/common/Card/Card';
 import { api } from '../services/api';
@@ -12,6 +12,7 @@ const Signup = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    role: 'member',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -40,6 +41,7 @@ const Signup = () => {
         name: form.name,
         email: form.email,
         password: form.password,
+        role: form.role,
       });
       api.saveToken(data.token);
       navigate('/dashboard');
@@ -62,6 +64,35 @@ const Signup = () => {
         </div>
         <Card className="signup-card">
           <form className="signup-form" onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>I am joining as...</label>
+              <div className="role-selector">
+                <button
+                  type="button"
+                  className={`role-option ${form.role === 'lead' ? 'active' : ''}`}
+                  onClick={() => setForm({ ...form, role: 'lead' })}
+                >
+                  <Crown size={20} />
+                  <div>
+                    <div className="role-title">Team Lead</div>
+                    <div className="role-desc">Create company, invite members</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={`role-option ${form.role === 'member' ? 'active' : ''}`}
+                  onClick={() => setForm({ ...form, role: 'member' })}
+                >
+                  <Users size={20} />
+                  <div>
+                    <div className="role-title">Team Member</div>
+                    <div className="role-desc">Join an existing team</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             <div className="form-group">
               <label htmlFor="name">Full Name</label>
               <input
@@ -96,7 +127,7 @@ const Signup = () => {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="Create a password (min 6 chars)"
+                placeholder="At least 6 characters"
                 className="form-input"
                 required
               />
@@ -109,7 +140,7 @@ const Signup = () => {
                 name="confirmPassword"
                 value={form.confirmPassword}
                 onChange={handleChange}
-                placeholder="Confirm your password"
+                placeholder="Repeat password"
                 className="form-input"
                 required
               />
@@ -149,8 +180,8 @@ const Signup = () => {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           padding: 20px;
         }
-        .signup-container { width: 100%; max-width: 400px; }
-        .signup-header { text-align: center; margin-bottom: 32px; }
+        .signup-container { width: 100%; max-width: 460px; }
+        .signup-header { text-align: center; margin-bottom: 28px; }
         .signup-header h1 {
           font-size: 32px;
           color: white;
@@ -171,11 +202,45 @@ const Signup = () => {
           border-radius: 6px;
           font-size: 14px;
           transition: border-color 0.2s;
+          font-family: inherit;
         }
         .form-input:focus {
           outline: none;
           border-color: #667eea;
           box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .role-selector {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .role-option {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px;
+          border: 2px solid #e5e7eb;
+          border-radius: 8px;
+          background: white;
+          cursor: pointer;
+          text-align: left;
+          font-family: inherit;
+          transition: all 0.15s;
+        }
+        .role-option:hover { border-color: #c7d2fe; }
+        .role-option.active {
+          border-color: #667eea;
+          background: #f5f7ff;
+        }
+        .role-title {
+          font-size: 13px;
+          font-weight: 600;
+          color: #1a202c;
+        }
+        .role-desc {
+          font-size: 11px;
+          color: #64748b;
+          margin-top: 2px;
         }
         .form-error {
           color: #dc3545;
