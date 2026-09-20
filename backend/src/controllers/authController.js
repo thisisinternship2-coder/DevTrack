@@ -9,10 +9,12 @@ const generateToken = (id) =>
 
 exports.register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ message: 'All fields required' });
     }
+
+    const userRole = role === 'lead' ? 'lead' : 'member';
 
     const exists = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (exists.rows.length > 0) {
@@ -21,8 +23,8 @@ exports.register = async (req, res) => {
 
     const hashed = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id, name, email, role',
-      [name, email, hashed]
+      'INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id, name, email, role, company_id',
+      [name, email, hashed, userRole]
     );
 
     const user = result.rows[0];
@@ -54,7 +56,13 @@ exports.login = async (req, res) => {
     res.json({
       success: true,
       token: generateToken(user.id),
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        company_id: user.company_id,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

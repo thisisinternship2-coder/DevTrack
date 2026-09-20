@@ -1,4 +1,5 @@
-require('dotenv').config();  // ← FIRST LINE
+//server.js
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
@@ -15,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', require('./src/routes/authRoutes'));
 app.use('/api/projects', require('./src/routes/projectRoutes'));
 app.use('/api/tasks', require('./src/routes/taskRoutes'));
+app.use('/api/companies', require('./src/routes/companyRoutes'));
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -31,7 +33,8 @@ app.get('/', (req, res) => {
       health: '/api/health',
       auth: '/api/auth',
       projects: '/api/projects',
-      tasks: '/api/tasks'
+      tasks: '/api/tasks',
+      companies: '/api/companies'
     }
   });
 });
