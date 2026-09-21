@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Rocket, Loader2 } from 'lucide-react';
 import Button from '../components/common/Button/Button';
 import Card from '../components/common/Card/Card';
+import LoadingOverlay from '../components/common/LoadingOverlay/LoadingOverlay';
 import { api } from '../services/api';
 
 const Login = () => {
@@ -33,6 +34,7 @@ const Login = () => {
 
   return (
     <div className="login-page">
+      <LoadingOverlay show={loading} message="Signing you in..." />
       <div className="login-container">
         <div className="login-header">
           <h1>

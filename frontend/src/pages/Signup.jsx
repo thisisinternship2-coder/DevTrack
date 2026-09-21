@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Rocket, Loader2, Users, Crown } from 'lucide-react';
 import Button from '../components/common/Button/Button';
 import Card from '../components/common/Card/Card';
+import LoadingOverlay from '../components/common/LoadingOverlay/LoadingOverlay';
 import { api } from '../services/api';
 
 const Signup = () => {
@@ -54,6 +55,7 @@ const Signup = () => {
 
   return (
     <div className="signup-page">
+      <LoadingOverlay show={loading} message="Creating your account..." />
       <div className="signup-container">
         <div className="signup-header">
           <h1>
